@@ -1,5 +1,5 @@
 pygithub
-pylint
+pylint>=3.0
 flake8
 flask
 python-dotenv
