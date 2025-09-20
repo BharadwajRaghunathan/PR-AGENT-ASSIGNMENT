@@ -36,9 +36,9 @@ class FeedbackGeneration:
         """AI-driven suggestions (simulate with rules; integrate CodeMate AI)."""
         suggestions = []
         if issues.get('standards'):
-            if any('missing docstring' in item.lower() for item in issues['standards']):
+            if any('missing docstring' in item.lower() or 'E231' in item for item in issues['standards']):
                 suggestions.append("Add docstrings to functions for better readability.")
         if issues.get('bugs'):
-            if any('unused variable' in item.lower() for item in issues['bugs']):
+            if any('unused variable' in item.lower() or 'F841' in item for item in issues['bugs']):
                 suggestions.append("Remove unused variables to improve performance.")
         return suggestions
