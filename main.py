@@ -2,7 +2,6 @@ import argparse
 from git_integration import GitIntegration
 from code_analysis import CodeAnalysis
 from feedback_generation import FeedbackGeneration
-from app import app  # Optional Flask app
 
 def main():
     parser = argparse.ArgumentParser(description="PR Review Agent")
@@ -12,7 +11,8 @@ def main():
     args = parser.parse_args()
     
     if args.web:
-        # Run Flask web interface
+        # Import Flask app only if --web is used
+        from app import app
         app.run(debug=True)
     else:
         # CLI mode

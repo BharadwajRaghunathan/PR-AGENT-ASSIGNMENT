@@ -12,7 +12,7 @@ class GitIntegration:
         if self.server_type == 'github':
             token = os.getenv('GITHUB_TOKEN')
             if not token:
-                raise ValueError("GITHUB_TOKEN not found in .env")
+                raise ValueError("GITHUB_TOKEN not found in .env. Ensure .env exists with valid token.")
             self.client = Github(token)
         elif self.server_type == 'gitlab':
             raise NotImplementedError("GitLab support: Install python-gitlab and extend.")
@@ -29,11 +29,12 @@ class GitIntegration:
             files = pr.get_files()
             pr_data = []
             for file in files:
+                content = repo.get_contents(file.filename, ref=pr.head.sha).decoded_content
                 pr_data.append({
                     'filename': file.filename,
-                    'patch': file.patch,
-                    'content': repo.get_contents(file.filename, ref=pr.head.sha).decoded_content.decode('utf-8')
+                    'patch': file.patch or '',
+                    'content': content.decode('utf-8') if content else ''
                 })
             return pr_data
         except GithubException as e:
-            raise ValueError(f"Error fetching PR: {e}")
+            raise ValueError(f"Error fetching PR {pr_number} from {repo_name}: {str(e)}")

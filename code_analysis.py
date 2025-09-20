@@ -11,24 +11,30 @@ class CodeAnalysis:
         issues = {'structure': [], 'standards': [], 'bugs': []}
         
         temp_file = f"temp_{filename}"
-        with open(temp_file, 'w') as f:
-            f.write(file_content)
+        try:
+            # Write file with UTF-8 encoding
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                f.write(file_content if file_content else '')
+            
+            # pylint analysis
+            output = StringIO()
+            reporter = TextReporter(output)
+            Run([temp_file], reporter=reporter)  # Removed do_exit (not supported in pylint 3.0+)
+            pylint_output = output.getvalue()
+            for line in pylint_output.splitlines():
+                if line.startswith('C'): issues['standards'].append(line)
+                elif line.startswith('R'): issues['structure'].append(line)
+                elif line.startswith('E') or line.startswith('W'): issues['bugs'].append(line)
+            
+            # flake8 analysis
+            flake8_style = flake8.get_style_guide()
+            flake8_report = flake8_style.check_files([temp_file])
+            for error in flake8_report.get_statistics('E'): issues['bugs'].append(error)
+            for error in flake8_report.get_statistics('W'): issues['standards'].append(error)
+        except Exception as e:
+            issues['bugs'].append(f"Analysis error: {str(e)}")
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
         
-        # pylint
-        output = StringIO()
-        reporter = TextReporter(output)
-        Run([temp_file], reporter=reporter, do_exit=False)
-        pylint_output = output.getvalue()
-        for line in pylint_output.splitlines():
-            if 'C' in line: issues['standards'].append(line)
-            elif 'R' in line: issues['structure'].append(line)
-            elif 'E' in line or 'W' in line: issues['bugs'].append(line)
-        
-        # flake8
-        flake8_style = flake8.get_style_guide()
-        flake8_report = flake8_style.check_files([temp_file])
-        for error in flake8_report.get_statistics('E'): issues['bugs'].append(error)
-        for error in flake8_report.get_statistics('W'): issues['standards'].append(error)
-        
-        os.remove(temp_file)
         return issues
