@@ -22,7 +22,7 @@ class CodeAnalysis:
             # pylint analysis
             output = StringIO()
             reporter = TextReporter(output)
-            Run([temp_file], reporter=reporter)  # Removed do_exit for pylint 3.0+
+            Run([temp_file], reporter=reporter)  # Fixed: No do_exit
             pylint_output = output.getvalue()
             for line in pylint_output.splitlines():
                 if line.startswith('C'): issues['standards'].append(line)
