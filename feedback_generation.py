@@ -37,10 +37,16 @@ class FeedbackGeneration:
         suggestions = []
         for category, items in issues.items():
             for item in items:
-                if 'missing docstring' in item.lower() or 'C0116' in item:
+                # Pylint codes
+                if 'C0114' in item or 'C0116' in item or 'missing docstring' in item.lower():
                     suggestions.append("Add docstrings to functions for better readability.")
-                if 'unused variable' in item.lower() or 'F841' in item:
+                if 'W0612' in item or 'unused variable' in item.lower():
                     suggestions.append("Remove unused variables to improve performance.")
-                if 'missing whitespace' in item.lower() or 'E231' in item:
+                if 'W0101' in item or 'unreachable code' in item.lower():
+                    suggestions.append("Remove unreachable code to improve clarity.")
+                # Flake8 codes
+                if 'E231' in item or 'missing whitespace' in item.lower():
                     suggestions.append("Add proper spacing after commas to comply with PEP 8.")
-        return suggestions
+                if 'F841' in item or 'local variable' in item.lower():
+                    suggestions.append("Remove unused variables to improve performance.")
+        return list(set(suggestions))  # Remove duplicates
