@@ -2,7 +2,7 @@ import os
 from pylint.lint import Run
 from pylint.reporters.text import TextReporter
 from io import StringIO
-import flake8.api as flake8
+import flake8.api.legacy as flake8  # Updated for newer Flake8 versions
 
 class CodeAnalysis:
     """Module for code review using pylint/flake8 (Code Review tech stack)."""
@@ -27,13 +27,14 @@ class CodeAnalysis:
             output = StringIO()
             reporter = TextReporter(output)
             try:
-                Run([temp_file], reporter=reporter, exit=False)  # Use exit=False instead of do_exit
+                Run([temp_file], reporter=reporter, exit=False)
                 pylint_output = output.getvalue()
                 print(f"Pylint output: {'Empty' if not pylint_output else 'Generated'}")
                 for line in pylint_output.splitlines():
                     if line.startswith('C'): issues['standards'].append(line)
                     elif line.startswith('R'): issues['structure'].append(line)
                     elif line.startswith('E') or line.startswith('W'): issues['bugs'].append(line)
+                print(f"Pylint found {len(issues['standards'])} standards, {len(issues['structure'])} structure, {len(issues['bugs'])} bugs")
             except Exception as e:
                 issues['bugs'].append(f"Pylint error: {str(e)}")
                 print(f"Pylint failed: {str(e)}")
@@ -42,12 +43,12 @@ class CodeAnalysis:
             print("Running flake8 analysis...")
             try:
                 flake8_style = flake8.get_style_guide()
-                flake8_report = flake8_style.check_files([temp_file])
-                for error in flake8_report.get_statistics('E'):
+                report = flake8_style.check_files([temp_file])
+                for error in report.get_statistics('E'):
                     issues['bugs'].append(error)
-                for error in flake8_report.get_statistics('W'):
+                for error in report.get_statistics('W'):
                     issues['standards'].append(error)
-                print(f"Flake8 issues - Errors: {len(flake8_report.get_statistics('E'))}, Warnings: {len(flake8_report.get_statistics('W'))}")
+                print(f"Flake8 issues - Errors: {len(report.get_statistics('E'))}, Warnings: {len(report.get_statistics('W'))}")
             except Exception as e:
                 issues['bugs'].append(f"Flake8 error: {str(e)}")
                 print(f"Flake8 failed: {str(e)}")
