@@ -29,7 +29,7 @@ class GitIntegration:
             repo = self.client.get_repo(repo_name)
             pr = repo.get_pull(pr_number)
             print(f"PR #{pr_number} title: {pr.title}")
-            files = pr.get_files()
+            files = list(pr.get_files())  # Convert PaginatedList to list
             print(f"Found {len(files)} files in PR.")
             pr_data = []
             for file in files:
