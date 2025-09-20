@@ -1,0 +1,5 @@
+pygithub
+pylint
+flake8
+flask
+python-dotenv
