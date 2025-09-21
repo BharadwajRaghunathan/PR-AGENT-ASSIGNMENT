@@ -1,0 +1,175 @@
+# 🤖 GitLab CI Integration for PR Review Agent
+stages:
+  - code-review
+
+variables:
+  PYTHON_VERSION: "3.9"
+
+pr-review:
+  stage: code-review
+  image: python:${PYTHON_VERSION}
+  
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install pylint flake8 requests python-dotenv PyGithub python-gitlab
+  
+  script:
+    - echo "🤖 Starting PR Review Agent Analysis..."
+    
+    # Create analysis script
+    - |
+      cat > gitlab_pr_analysis.py << 'EOF'
+      import os
+      import subprocess
+      import json
+      import gitlab
+      from pathlib import Path
+      
+      def analyze_changed_files():
+          """Analyze files changed in merge request."""
+          # Get GitLab environment variables
+          project_id = os.getenv('CI_PROJECT_ID')
+          mr_iid = os.getenv('CI_MERGE_REQUEST_IID')
+          gitlab_token = os.getenv('GITLAB_TOKEN')
+          gitlab_url = os.getenv('CI_SERVER_URL', 'https://gitlab.com')
+          
+          if not all([project_id, mr_iid, gitlab_token]):
+              print("⚠️  Missing GitLab environment variables")
+              return []
+          
+          try:
+              # Connect to GitLab
+              gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+              project = gl.projects.get(project_id)
+              mr = project.mergerequests.get(mr_iid)
+              
+              # Get changed files
+              changes = mr.changes()
+              python_files = []
+              
+              for change in changes.get('changes', []):
+                  new_path = change.get('new_path')
+                  if new_path and new_path.endswith('.py') and Path(new_path).exists():
+                      python_files.append(new_path)
+              
+              print(f"📁 Found {len(python_files)} Python files to analyze")
+              return python_files
+              
+          except Exception as e:
+              print(f"❌ Error getting changed files: {e}")
+              # Fallback: analyze all Python files
+              return [str(p) for p in Path('.').rglob('*.py') if p.is_file()]
+      
+      def analyze_file(filepath):
+          """Analyze a single file."""
+          issues = []
+          
+          # Pylint analysis
+          try:
+              result = subprocess.run(
+                  ['pylint', filepath, '--output-format=json'],
+                  capture_output=True, text=True, timeout=30
+              )
+              if result.stdout:
+                  pylint_issues = json.loads(result.stdout)
+                  for issue in pylint_issues:
+                      issues.append({
+                          'tool': 'pylint',
+                          'line': issue.get('line', 0),
+                          'message': issue['message'],
+                          'type': issue['type']
+                      })
+          except Exception as e:
+              print(f"⚠️  Pylint failed for {filepath}: {e}")
+          
+          # Flake8 analysis
+          try:
+              result = subprocess.run(
+                  ['flake8', filepath], 
+                  capture_output=True, text=True, timeout=30
+              )
+              if result.stdout:
+                  for line in result.stdout.strip().split('\n'):
+                      if ':' in line:
+                          parts = line.split(':', 3)
+                          if len(parts) >= 4:
+                              issues.append({
+                                  'tool': 'flake8',
+                                  'line': int(parts[1]) if parts[1].isdigit() else 0,
+                                  'code': parts[3].split()[0] if parts[3] else '',
+                                  'message': parts[3] if parts[3] else line
+                              })
+          except Exception as e:
+              print(f"⚠️  Flake8 failed for {filepath}: {e}")
+          
+          return issues
+      
+      def main():
+          files_to_analyze = analyze_changed_files()
+          
+          if not files_to_analyze:
+              print("✅ No Python files to analyze")
+              return 0
+          
+          total_issues = 0
+          results = {}
+          
+          for filepath in files_to_analyze:
+              print(f"🔍 Analyzing {filepath}...")
+              issues = analyze_file(filepath)
+              results[filepath] = issues
+              total_issues += len(issues)
+              
+              if issues:
+                  print(f"  📊 Found {len(issues)} issues")
+          
+          # Generate report
+          print(f"\n" + "="*60)
+          print(f"🎯 GITLAB CI PR REVIEW RESULTS")
+          print(f"="*60)
+          print(f"📊 Total Issues: {total_issues}")
+          print(f"📁 Files Analyzed: {len(files_to_analyze)}")
+          
+          if total_issues > 0:
+              print(f"\n📋 DETAILED RESULTS:")
+              for filepath, issues in results.items():
+                  if issues:
+                      print(f"\n📄 {filepath} ({len(issues)} issues):")
+                      for issue in issues[:3]:  # Show first 3
+                          line = f"Line {issue['line']}" if issue['line'] > 0 else "General"
+                          print(f"  • {line}: {issue['message']}")
+                      if len(issues) > 3:
+                          print(f"  ... and {len(issues) - 3} more issues")
+              
+              print(f"\n🛠️  RECOMMENDATIONS:")
+              print(f"• Run 'pylint <filename>' locally for detailed analysis")
+              print(f"• Run 'flake8 <filename>' to check PEP 8 compliance")
+              print(f"• Consider using pre-commit hooks for automatic checks")
+              
+              # Return error code if too many issues
+              if total_issues > 15:
+                  print(f"\n❌ BLOCKING: Too many issues ({total_issues}). Please fix critical issues.")
+                  return 1
+              else:
+                  print(f"\n⚠️  WARNING: Issues found but not blocking merge.")
+                  return 0
+          else:
+              print("✅ No issues found! Excellent code quality.")
+              return 0
+      
+      if __name__ == "__main__":
+          exit(main())
+      EOF
+    
+    - python gitlab_pr_analysis.py
+  
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  
+  artifacts:
+    reports:
+      junit: test-results.xml
+    when: always
+    expire_in: 1 week
+  
+  allow_failure: true  # Don't block merge, just warn
