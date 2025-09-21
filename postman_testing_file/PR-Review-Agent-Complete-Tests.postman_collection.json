@@ -1,0 +1,313 @@
+{
+  "info": {
+    "name": "PR Review Agent - Complete API Test Suite",
+    "description": "Comprehensive testing collection for PR Review Agent webhook server and CI/CD integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "1. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5001/",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Manual Review API - GitHub",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"github\",\n  \"repository\": \"BharadwajRaghunathan/test-pr-repo\",\n  \"pr_number\": 1,\n  \"post_comments\": false\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/review",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "review"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3. Manual Review API - GitLab",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"gitlab\",\n  \"repository\": \"bharadwajraghunathan-group/test-pr-repo\",\n  \"pr_number\": 1,\n  \"post_comments\": false\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/review",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "review"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4. Manual Review API - Bitbucket",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"bitbucket\",\n  \"repository\": \"pr-agent1/test-pr-repo\",\n  \"pr_number\": 1,\n  \"post_comments\": false\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/review",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "review"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5. GitHub Webhook Simulation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-GitHub-Event",
+            "value": "pull_request"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"opened\",\n  \"number\": 1,\n  \"pull_request\": {\n    \"number\": 1,\n    \"title\": \"Test PR for Review Agent\",\n    \"user\": {\n      \"login\": \"BharadwajRaghunathan\"\n    },\n    \"head\": {\n      \"ref\": \"test-branch\"\n    },\n    \"base\": {\n      \"ref\": \"main\"\n    }\n  },\n  \"repository\": {\n    \"full_name\": \"BharadwajRaghunathan/test-pr-repo\",\n    \"name\": \"test-pr-repo\",\n    \"owner\": {\n      \"login\": \"BharadwajRaghunathan\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/webhook/github",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "webhook",
+            "github"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6. GitLab Webhook Simulation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"object_kind\": \"merge_request\",\n  \"object_attributes\": {\n    \"action\": \"open\",\n    \"iid\": 1,\n    \"title\": \"Test MR for Review Agent\",\n    \"source_branch\": \"test-branch\",\n    \"target_branch\": \"main\"\n  },\n  \"project\": {\n    \"path_with_namespace\": \"bharadwajraghunathan-group/test-pr-repo\",\n    \"name\": \"test-pr-repo\"\n  },\n  \"user\": {\n    \"name\": \"Bharadwaj R\"\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/webhook/gitlab",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "webhook",
+            "gitlab"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "7. Bitbucket Webhook Simulation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Event-Key",
+            "value": "pullrequest:created"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pullrequest\": {\n    \"id\": 1,\n    \"title\": \"Test PR for Review Agent\",\n    \"source\": {\n      \"branch\": {\n        \"name\": \"test-branch\"\n      }\n    },\n    \"destination\": {\n      \"branch\": {\n        \"name\": \"main\"\n      }\n    },\n    \"author\": {\n      \"display_name\": \"bharadwaj-r\"\n    }\n  },\n  \"repository\": {\n    \"full_name\": \"pr-agent1/test-pr-repo\"\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/webhook/bitbucket",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "webhook",
+            "bitbucket"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8. Generic Webhook",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"github\",\n  \"repository\": \"BharadwajRaghunathan/test-pr-repo\",\n  \"pr_number\": 1,\n  \"action\": \"opened\",\n  \"branch\": \"test-branch\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/webhook/generic",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "webhook",
+            "generic"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "9. CI Mode Test - GitHub Actions Simulation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"github\",\n  \"repository\": \"BharadwajRaghunathan/test-pr-repo\",\n  \"pr_number\": 1,\n  \"ci_environment\": \"github_actions\",\n  \"github_actions\": true,\n  \"github_repository\": \"BharadwajRaghunathan/test-pr-repo\",\n  \"github_pr_number\": \"1\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/webhook/generic",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "webhook",
+            "generic"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10. CI Mode Test - GitLab CI Simulation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"gitlab\",\n  \"repository\": \"bharadwajraghunathan-group/test-pr-repo\",\n  \"pr_number\": 1,\n  \"ci_environment\": \"gitlab_ci\",\n  \"gitlab_ci\": true,\n  \"ci_project_path\": \"bharadwajraghunathan-group/test-pr-repo\",\n  \"ci_merge_request_iid\": \"1\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5001/webhook/generic",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5001",
+          "path": [
+            "webhook",
+            "generic"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "github_repo",
+      "value": "BharadwajRaghunathan/test-pr-repo"
+    },
+    {
+      "key": "gitlab_repo",
+      "value": "bharadwajraghunathan-group/test-pr-repo"
+    },
+    {
+      "key": "bitbucket_repo",
+      "value": "pr-agent1/test-pr-repo"
+    }
+  ]
+}
