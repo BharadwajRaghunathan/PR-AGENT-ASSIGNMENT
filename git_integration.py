@@ -6,9 +6,7 @@ from dotenv import load_dotenv
 import requests
 import base64
 
-
 load_dotenv()
-
 
 class GitIntegration:
     """Enhanced Git integration supporting GitHub, GitLab, and Bitbucket."""
@@ -63,6 +61,55 @@ class GitIntegration:
         else:
             raise NotImplementedError(f"PR fetching not implemented for {self.server_type}")
 
+    def _is_analyzable_file(self, filename):
+        """Check if file should be analyzed."""
+        # Only analyze Python files, skip workflow files and other non-Python files
+        if not filename.endswith('.py'):
+            return False
+        if filename.startswith('.github/'):
+            return False
+        if filename in ['setup.py', '__init__.py'] and filename.endswith('__init__.py'):
+            return False
+        return True
+
+    def _safe_decode_content(self, content_obj, filename):
+        """Safely decode file content, handling binary files and encoding issues."""
+        try:
+            if content_obj is None:
+                return ''
+            
+            # If it's already decoded content
+            if hasattr(content_obj, 'decoded_content') and content_obj.decoded_content:
+                raw_content = content_obj.decoded_content
+            else:
+                return ''
+            
+            # Handle bytes
+            if isinstance(raw_content, bytes):
+                # Try UTF-8 first
+                try:
+                    content = raw_content.decode('utf-8')
+                except UnicodeDecodeError:
+                    try:
+                        # Try latin-1 as fallback
+                        content = raw_content.decode('latin-1')
+                    except UnicodeDecodeError:
+                        print(f"   ⚠️  Could not decode {filename} - skipping")
+                        return ''
+            else:
+                content = str(raw_content)
+            
+            # Check for null bytes or other binary indicators
+            if '\x00' in content or len(content.encode('utf-8')) > 1000000:  # Skip very large files
+                print(f"   ⚠️  {filename} appears to be binary or too large - skipping")
+                return ''
+                
+            return content
+            
+        except Exception as e:
+            print(f"   ⚠️  Error decoding {filename}: {str(e)}")
+            return ''
+
     def _fetch_github_pr(self, repo_name, pr_number):
         """Fetch GitHub PR data."""
         try:
@@ -78,31 +125,34 @@ class GitIntegration:
             
             pr_data = []
             for file in files:
+                # Only process Python files
+                if not self._is_analyzable_file(file.filename):
+                    print(f"   ⏩ Skipping {file.filename} (not a Python source file)")
+                    continue
+                
                 try:
                     content_obj = repo.get_contents(file.filename, ref=pr.head.sha)
-                    content = content_obj.decoded_content if content_obj.decoded_content else b''
-                    pr_data.append({
-                        'filename': file.filename,
-                        'patch': file.patch or '',
-                        'content': content.decode('utf-8') if content else '',
-                        'additions': file.additions,
-                        'deletions': file.deletions,
-                        'status': file.status,
-                        'sha': file.sha
-                    })
-                    print(f"   📄 {file.filename} (+{file.additions}/-{file.deletions})")
+                    content = self._safe_decode_content(content_obj, file.filename)
+                    
+                    if content:  # Only add files with valid content
+                        pr_data.append({
+                            'filename': file.filename,
+                            'patch': file.patch or '',
+                            'content': content,
+                            'additions': file.additions,
+                            'deletions': file.deletions,
+                            'status': file.status,
+                            'sha': file.sha
+                        })
+                        print(f"   📄 {file.filename} (+{file.additions}/-{file.deletions}) - {len(content)} chars")
+                    else:
+                        print(f"   ⏩ Skipping {file.filename} - no valid content")
+                        
                 except Exception as e:
                     print(f"   ⚠️  Could not fetch content for {file.filename}: {str(e)}")
-                    pr_data.append({
-                        'filename': file.filename,
-                        'patch': file.patch or '',
-                        'content': '',
-                        'additions': file.additions,
-                        'deletions': file.deletions,
-                        'status': file.status,
-                        'sha': file.sha
-                    })
+                    continue
                     
+            print(f"✅ Successfully processed {len(pr_data)} Python files from GitHub PR")
             return pr_data
             
         except GithubException as e:
@@ -145,23 +195,24 @@ class GitIntegration:
                 for diff in diffs:
                     if isinstance(diff, dict):
                         file_path = diff.get('new_path') or diff.get('old_path')
-                        if file_path and file_path.endswith('.py'):  # Focus on Python files
+                        if file_path and self._is_analyzable_file(file_path):
                             print(f"   📄 Processing {file_path}...")
                             content = self._get_gitlab_file_content(project, file_path, mr_source_branch)
                             
-                            additions = len([l for l in diff.get('diff', '').split('\n') if l.startswith('+') and not l.startswith('+++')])
-                            deletions = len([l for l in diff.get('diff', '').split('\n') if l.startswith('-') and not l.startswith('---')])
-                            
-                            mr_data.append({
-                                'filename': file_path,
-                                'patch': diff.get('diff', ''),
-                                'content': content,
-                                'additions': additions,
-                                'deletions': deletions,
-                                'status': 'modified',
-                                'sha': diff.get('b_mode', '')
-                            })
-                            print(f"   ✅ {file_path} (content: {len(content)} chars)")
+                            if content:
+                                additions = len([l for l in diff.get('diff', '').split('\n') if l.startswith('+') and not l.startswith('+++')])
+                                deletions = len([l for l in diff.get('diff', '').split('\n') if l.startswith('-') and not l.startswith('---')])
+                                
+                                mr_data.append({
+                                    'filename': file_path,
+                                    'patch': diff.get('diff', ''),
+                                    'content': content,
+                                    'additions': additions,
+                                    'deletions': deletions,
+                                    'status': 'modified',
+                                    'sha': diff.get('b_mode', '')
+                                })
+                                print(f"   ✅ {file_path} (content: {len(content)} chars)")
                 
             except Exception as e:
                 print(f"⚠️  Comparison method failed: {str(e)}")
@@ -335,13 +386,25 @@ class BadClass:
                     # It's already a string, try to decode as base64
                     try:
                         decoded_bytes = base64.b64decode(raw_content)
-                        return decoded_bytes.decode('utf-8')
+                        content = decoded_bytes.decode('utf-8')
+                        # Check for binary content
+                        if '\x00' in content:
+                            return ''
+                        return content
                     except Exception:
-                        # If base64 decode fails, return as-is
-                        return raw_content
+                        # If base64 decode fails, return as-is if it's text
+                        if '\x00' not in raw_content:
+                            return raw_content
+                        return ''
                 elif isinstance(raw_content, bytes):
                     # It's bytes, decode to string
-                    return raw_content.decode('utf-8')
+                    try:
+                        content = raw_content.decode('utf-8')
+                        if '\x00' in content:
+                            return ''
+                        return content
+                    except UnicodeDecodeError:
+                        return ''
                 else:
                     # Unknown format
                     return str(raw_content)
