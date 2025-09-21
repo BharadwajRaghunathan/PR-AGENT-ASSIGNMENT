@@ -1,6 +1,5 @@
 import re
 
-
 class InlineCommentGenerator:
     """Generate inline review comments similar to GitHub/GitLab."""
     
@@ -81,6 +80,10 @@ class InlineCommentGenerator:
             'C0116': f"Add docstring: `\"\"\"{self._suggest_docstring(code_line)}\"\"\"`",
             'W0612': "Remove or use this variable",
             'W0101': "This code is unreachable - remove it",
+            'C3001': "Replace lambda with proper function definition",
+            'W0125': "Avoid constant conditionals - use variable or logic",
+            'C0115': "Add class docstring",
+            'R0903': "Consider adding more public methods"
         }
         
         for code, suggestion in suggestions.items():

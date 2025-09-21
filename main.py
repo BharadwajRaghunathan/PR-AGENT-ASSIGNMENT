@@ -5,7 +5,6 @@ from feedback_generation import FeedbackGeneration
 from inline_comments import InlineCommentGenerator
 import os
 
-
 def main():
     parser = argparse.ArgumentParser(description="PR Review Agent - Multi-Platform Code Review")
     parser.add_argument('--repo', help="Repository name (e.g., owner/repo)")
@@ -67,7 +66,6 @@ def main():
         except Exception as e:
             print(f"❌ Error: {str(e)}")
             return
-
 
 if __name__ == "__main__":
     main()

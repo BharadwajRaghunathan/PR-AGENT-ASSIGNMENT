@@ -5,9 +5,7 @@ import gitlab
 from dotenv import load_dotenv
 import requests
 
-
 load_dotenv()
-
 
 class GitIntegration:
     """Enhanced Git integration supporting GitHub and GitLab."""

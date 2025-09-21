@@ -1,12 +1,12 @@
 import os
 import tempfile
-import subprocess
+import sys
+import ast
+import re
 from pylint.lint import Run
 from pylint.reporters.text import TextReporter
 from io import StringIO
-import ast
-import re
-
+import flake8.api.legacy as flake8
 
 class CodeAnalysis:
     """Enhanced code analysis with multiple tools and AI insights."""
@@ -101,20 +101,18 @@ class CodeAnalysis:
             # Parse pylint output
             lines_processed = 0
             for line in pylint_output.splitlines():
-                if ':' in line and any(code in line for code in ['C0', 'R0', 'W0', 'E0', 'F0']):
+                if line.strip() and ': ' in line:
                     try:
                         # Format: filename:line:column: CODE: message
                         parts = line.split(':', 3)
                         if len(parts) >= 4:
                             message_part = parts[3].strip()
-                            # Extract code (e.g., "C0114: Missing module docstring")
-                            if ':' in message_part:
-                                code_part, desc_part = message_part.split(':', 1)
-                                code = code_part.strip()
-                                desc = desc_part.strip()
+                            # Extract code and description
+                            if ' ' in message_part:
+                                code = message_part.split(' ')[0]
+                                desc = ' '.join(message_part.split(' ')[1:]).strip(' ()')
                                 full_message = f"{code}: {desc}"
                                 
-                                # Categorize by code
                                 if code.startswith('C'):
                                     issues['standards'].append(full_message)
                                 elif code.startswith('R'):
@@ -136,92 +134,47 @@ class CodeAnalysis:
         return issues
     
     def _run_flake8_analysis(self, temp_path):
-        """Run flake8 analysis using subprocess."""
+        """Run flake8 analysis using direct import."""
         issues = {'standards': [], 'bugs': []}
         
         try:
             print("🔍 Running Flake8 analysis...")
+            style_guide = flake8.get_style_guide(max_line_length=120)
+            report = style_guide.check_files([temp_path])
+            stats = report.get_statistics('')
             
-            # Run flake8 as subprocess
-            result = subprocess.run(
-                ['python', '-m', 'flake8', temp_path, '--max-line-length=120', '--statistics'],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            print(f"📋 Flake8 output ({len(stats)} issues):")
+            if stats:
+                print('\n'.join(stats[:10]) + ("..." if len(stats) > 10 else ""))
             
-            flake8_output = result.stdout
-            flake8_errors = result.stderr
-            
-            print(f"📋 Flake8 stdout ({len(flake8_output)} chars):")
-            if flake8_output.strip():
-                print(flake8_output[:500] + "..." if len(flake8_output) > 500 else flake8_output)
-            
-            if flake8_errors.strip():
-                print(f"📋 Flake8 stderr: {flake8_errors[:200]}")
-            
-            # Parse flake8 output - each line is: filepath:line:col: code message
+            # Parse flake8 output
             lines_processed = 0
-            for line in flake8_output.splitlines():
-                if ':' in line and any(code in line for code in ['E', 'W', 'F']):
-                    try:
-                        # Format: filename:line:col: code message
-                        parts = line.split(':', 3)
-                        if len(parts) >= 4:
-                            error_part = parts[3].strip()
-                            # Extract code and message (e.g., "E231 missing whitespace after ','")
-                            space_index = error_part.find(' ')
-                            if space_index > 0:
-                                error_code = error_part[:space_index]
-                                error_desc = error_part[space_index + 1:]
-                                full_message = f"{error_code}: {error_desc}"
-                                
-                                # Categorize by code prefix
-                                if error_code.startswith(('E', 'F')):
-                                    issues['bugs'].append(full_message)
-                                elif error_code.startswith('W'):
-                                    issues['standards'].append(full_message)
-                                
-                                lines_processed += 1
-                    except Exception as e:
-                        print(f"⚠️ Error parsing flake8 line: {line[:100]}... - {str(e)}")
+            for error in stats:
+                try:
+                    # Format: line:col: CODE message
+                    parts = error.split(':', 2)
+                    if len(parts) >= 3:
+                        error_info = parts[2].strip().split(' ', 1)
+                        if len(error_info) >= 2:
+                            error_code = error_info[0]
+                            error_desc = error_info[1]
+                            full_message = f"{error_code}: {error_desc}"
+                            
+                            if error_code.startswith(('E', 'F')):
+                                issues['bugs'].append(full_message)
+                            elif error_code.startswith('W'):
+                                issues['standards'].append(full_message)
+                            
+                            lines_processed += 1
+                except Exception as e:
+                    print(f"⚠️ Error parsing flake8 line: {error[:100]}... - {str(e)}")
             
             print(f"✅ Flake8 processed {lines_processed} issue lines")
             print(f"   Standards: {len(issues['standards'])}, Bugs: {len(issues['bugs'])}")
                             
-        except FileNotFoundError:
-            print("⚠️ Flake8 not found - trying direct import...")
-            # Fallback to direct flake8 import
-            try:
-                import flake8.api.legacy as flake8_api
-                style_guide = flake8_api.get_style_guide(max_line_length=120)
-                report = style_guide.check_files([temp_path])
-                stats = report.get_statistics('')
-                
-                for error in stats:
-                    parts = error.strip().split(' ', 1)
-                    if len(parts) >= 2:
-                        count_and_code = parts[0]
-                        message = parts[1]
-                        # Extract just the code (like "E231")
-                        code_match = re.search(r'([EWF]\d+)', count_and_code)
-                        if code_match:
-                            code = code_match.group(1)
-                            full_message = f"{code}: {message}"
-                            
-                            if code.startswith(('E', 'F')):
-                                issues['bugs'].append(full_message)
-                            elif code.startswith('W'):
-                                issues['standards'].append(full_message)
-                
-                print(f"✅ Flake8 fallback found issues: {len(issues['standards']) + len(issues['bugs'])}")
-                
-            except ImportError:
-                issues['bugs'].append("Flake8 not available - install with: pip install flake8")
-                print("❌ Flake8 not available")
-        except subprocess.TimeoutExpired:
-            issues['bugs'].append("Flake8 analysis timed out")
-            print("❌ Flake8 timed out")
+        except ImportError:
+            issues['bugs'].append("Flake8 not available - install with: pip install flake8")
+            print("❌ Flake8 not available")
         except Exception as e:
             issues['bugs'].append(f"Flake8 error: {str(e)}")
             print(f"❌ Flake8 error: {str(e)}")
@@ -300,4 +253,9 @@ class CodeAnalysis:
         """Calculate maximum nesting depth."""
         max_depth = depth
         
-        for child in ast.iter
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
+                child_depth = self._calculate_nesting_depth(child, depth + 1)
+                max_depth = max(child_depth, max_depth)
+        
+        return max_depth
