@@ -49,4 +49,11 @@ class FeedbackGeneration:
                     suggestions.append("Add proper spacing after commas to comply with PEP 8.")
                 if 'F841' in item or 'local variable' in item.lower():
                     suggestions.append("Remove unused variables to improve performance.")
+                # Additional dynamic suggestions
+                if 'E501' in item or 'line too long' in item.lower():
+                    suggestions.append("Shorten lines to 79 characters or less to comply with PEP 8.")
+                if 'E302' in item or 'missing blank lines' in item.lower():
+                    suggestions.append("Add two blank lines before function definitions for better readability.")
+                if 'E722' in item or 'bare except' in item.lower():
+                    suggestions.append("Use specific exception types instead of bare except clauses for better error handling.")
         return list(set(suggestions))  # Remove duplicates

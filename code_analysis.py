@@ -30,18 +30,17 @@ class CodeAnalysis:
                 Run([temp_file], reporter=reporter, exit=False)
                 pylint_output = output.getvalue()
                 print(f"Pylint raw output:\n{pylint_output if pylint_output else 'Empty'}")
-                # Robust parsing
+                # Robust parsing for Pylint issues
                 for line in pylint_output.splitlines():
-                    if ': ' in line:
-                        parts = line.split(': ', 1)
-                        if len(parts) > 1 and parts[0].startswith(temp_file):
-                            issue_parts = parts[0].split(':')
-                            if len(issue_parts) >= 3:  # Ensure format: file:line:col: code
-                                issue_code = issue_parts[-1].strip().split()[0]
-                                issue_desc = parts[1].strip()
-                                if issue_code.startswith('C'): issues['standards'].append(f"{issue_code}: {issue_desc}")
-                                elif issue_code.startswith('R'): issues['structure'].append(f"{issue_code}: {issue_desc}")
-                                elif issue_code.startswith('E') or issue_code.startswith('W'): issues['bugs'].append(f"{issue_code}: {issue_desc}")
+                    if line.strip() and ': ' in line:
+                        # Example line: temp_bad_code.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+                        parts = line.split(':', 3)  # Split on first three : to separate file, line, col, rest
+                        if len(parts) >= 4:
+                            issue_code = parts[3].strip().split(' ')[0]
+                            issue_desc = ' '.join(parts[3].strip().split(' ')[1:]).strip(' ()')
+                            if issue_code.startswith('C'): issues['standards'].append(f"{issue_code}: {issue_desc}")
+                            elif issue_code.startswith('R'): issues['structure'].append(f"{issue_code}: {issue_desc}")
+                            elif issue_code.startswith('E') or issue_code.startswith('W'): issues['bugs'].append(f"{issue_code}: {issue_desc}")
                 print(f"Pylint found {len(issues['standards'])} standards, {len(issues['structure'])} structure, {len(issues['bugs'])} bugs")
             except Exception as e:
                 issues['bugs'].append(f"Pylint error: {str(e)}")
@@ -52,13 +51,14 @@ class CodeAnalysis:
             try:
                 flake8_style = flake8.get_style_guide()
                 report = flake8_style.check_files([temp_file])
-                stats = report.get_statistics('')  # Get all issues
+                stats = report.get_statistics('')
                 print(f"Flake8 raw output:\n{stats if stats else 'Empty'}")
                 for error in stats:
-                    parts = error.split(' ', 2)
-                    if len(parts) >= 2:
-                        error_code = parts[1]
-                        error_desc = parts[2] if len(parts) > 2 else ''
+                    # Example: "1:10: E231 missing whitespace after ','"
+                    parts = error.split(':', 2)
+                    if len(parts) >= 3:
+                        error_code = parts[1].strip().split(' ')[1]
+                        error_desc = parts[2].strip()
                         if error_code.startswith('E') or error_code.startswith('F'): issues['bugs'].append(f"{error_code}: {error_desc}")
                         elif error_code.startswith('W'): issues['standards'].append(f"{error_code}: {error_desc}")
                 print(f"Flake8 found {len(stats)} issues")
