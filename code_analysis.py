@@ -33,8 +33,8 @@ class CodeAnalysis:
                 # Robust parsing for Pylint issues
                 for line in pylint_output.splitlines():
                     if line.strip() and ': ' in line:
-                        # Example line: temp_bad_code.py:1:0: C0114: Missing module docstring (missing-module-docstring)
-                        parts = line.split(':', 3)  # Split on first three : to separate file, line, col, rest
+                        # Example: temp_bad_code.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+                        parts = line.split(':', 3)
                         if len(parts) >= 4:
                             issue_code = parts[3].strip().split(' ')[0]
                             issue_desc = ' '.join(parts[3].strip().split(' ')[1:]).strip(' ()')
@@ -55,10 +55,10 @@ class CodeAnalysis:
                 print(f"Flake8 raw output:\n{stats if stats else 'Empty'}")
                 for error in stats:
                     # Example: "1:10: E231 missing whitespace after ','"
-                    parts = error.split(':', 2)
+                    parts = error.split(' ', 2)
                     if len(parts) >= 3:
-                        error_code = parts[1].strip().split(' ')[1]
-                        error_desc = parts[2].strip()
+                        error_code = parts[1]
+                        error_desc = parts[2]
                         if error_code.startswith('E') or error_code.startswith('F'): issues['bugs'].append(f"{error_code}: {error_desc}")
                         elif error_code.startswith('W'): issues['standards'].append(f"{error_code}: {error_desc}")
                 print(f"Flake8 found {len(stats)} issues")

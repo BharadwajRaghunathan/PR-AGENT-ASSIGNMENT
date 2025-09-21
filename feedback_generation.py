@@ -44,16 +44,25 @@ class FeedbackGeneration:
                     suggestions.append("Remove unused variables to improve performance.")
                 if 'W0101' in item or 'unreachable code' in item.lower():
                     suggestions.append("Remove unreachable code to improve clarity.")
+                if 'C3001' in item or 'unnecessary-lambda-assignment' in item.lower():
+                    suggestions.append("Replace lambda assignments with proper function definitions.")
+                if 'W0125' in item or 'using a conditional statement with a constant value' in item.lower():
+                    suggestions.append("Avoid using constant values in conditional statements.")
+                if 'C0115' in item or 'missing class docstring' in item.lower():
+                    suggestions.append("Add docstrings to classes for better documentation.")
+                if 'R0903' in item or 'too few public methods' in item.lower():
+                    suggestions.append("Consider adding more public methods to classes for better functionality.")
                 # Flake8 codes
                 if 'E231' in item or 'missing whitespace' in item.lower():
                     suggestions.append("Add proper spacing after commas to comply with PEP 8.")
+                if 'E261' in item or 'spaces before inline comment' in item.lower():
+                    suggestions.append("Ensure at least two spaces before inline comments per PEP 8.")
                 if 'F841' in item or 'local variable' in item.lower():
                     suggestions.append("Remove unused variables to improve performance.")
-                # Additional dynamic suggestions
-                if 'E501' in item or 'line too long' in item.lower():
-                    suggestions.append("Shorten lines to 79 characters or less to comply with PEP 8.")
-                if 'E302' in item or 'missing blank lines' in item.lower():
-                    suggestions.append("Add two blank lines before function definitions for better readability.")
-                if 'E722' in item or 'bare except' in item.lower():
-                    suggestions.append("Use specific exception types instead of bare except clauses for better error handling.")
+                if 'E302' in item or 'expected 2 blank lines' in item.lower():
+                    suggestions.append("Add two blank lines before function or class definitions for better readability.")
+                if 'E305' in item or 'expected 2 blank lines after' in item.lower():
+                    suggestions.append("Add two blank lines after function or class definitions for better readability.")
+                if 'E731' in item or 'do not assign a lambda expression' in item.lower():
+                    suggestions.append("Use 'def' for function definitions instead of lambda assignments.")
         return list(set(suggestions))  # Remove duplicates
