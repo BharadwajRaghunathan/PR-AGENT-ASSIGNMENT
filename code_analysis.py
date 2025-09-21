@@ -32,14 +32,16 @@ class CodeAnalysis:
                 print(f"Pylint raw output:\n{pylint_output if pylint_output else 'Empty'}")
                 # Robust parsing
                 for line in pylint_output.splitlines():
-                    if ': ' in line and any(code in line for code in ['C', 'R', 'E', 'W']):
+                    if ': ' in line:
                         parts = line.split(': ', 1)
                         if len(parts) > 1 and parts[0].startswith(temp_file):
-                            issue_code = parts[0].split(':')[-1].strip().split()[0]
-                            issue_desc = parts[1].strip()
-                            if issue_code.startswith('C'): issues['standards'].append(f"{issue_code}: {issue_desc}")
-                            elif issue_code.startswith('R'): issues['structure'].append(f"{issue_code}: {issue_desc}")
-                            elif issue_code.startswith('E') or issue_code.startswith('W'): issues['bugs'].append(f"{issue_code}: {issue_desc}")
+                            issue_parts = parts[0].split(':')
+                            if len(issue_parts) >= 3:  # Ensure format: file:line:col: code
+                                issue_code = issue_parts[-1].strip().split()[0]
+                                issue_desc = parts[1].strip()
+                                if issue_code.startswith('C'): issues['standards'].append(f"{issue_code}: {issue_desc}")
+                                elif issue_code.startswith('R'): issues['structure'].append(f"{issue_code}: {issue_desc}")
+                                elif issue_code.startswith('E') or issue_code.startswith('W'): issues['bugs'].append(f"{issue_code}: {issue_desc}")
                 print(f"Pylint found {len(issues['standards'])} standards, {len(issues['structure'])} structure, {len(issues['bugs'])} bugs")
             except Exception as e:
                 issues['bugs'].append(f"Pylint error: {str(e)}")
@@ -53,10 +55,12 @@ class CodeAnalysis:
                 stats = report.get_statistics('')  # Get all issues
                 print(f"Flake8 raw output:\n{stats if stats else 'Empty'}")
                 for error in stats:
-                    error_code = error.split()[1]
-                    error_desc = ' '.join(error.split()[2:])
-                    if error_code.startswith('E') or error_code.startswith('F'): issues['bugs'].append(f"{error_code}: {error_desc}")
-                    elif error_code.startswith('W'): issues['standards'].append(f"{error_code}: {error_desc}")
+                    parts = error.split(' ', 2)
+                    if len(parts) >= 2:
+                        error_code = parts[1]
+                        error_desc = parts[2] if len(parts) > 2 else ''
+                        if error_code.startswith('E') or error_code.startswith('F'): issues['bugs'].append(f"{error_code}: {error_desc}")
+                        elif error_code.startswith('W'): issues['standards'].append(f"{error_code}: {error_desc}")
                 print(f"Flake8 found {len(stats)} issues")
             except Exception as e:
                 issues['bugs'].append(f"Flake8 error: {str(e)}")

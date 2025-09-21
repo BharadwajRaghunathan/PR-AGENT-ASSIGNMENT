@@ -39,7 +39,7 @@ class FeedbackGeneration:
             for item in items:
                 # Pylint codes
                 if 'C0114' in item or 'C0116' in item or 'missing docstring' in item.lower():
-                    suggestions.append("Add docstrings to functions for better readability.")
+                    suggestions.append("Add docstrings to functions and modules for better readability.")
                 if 'W0612' in item or 'unused variable' in item.lower():
                     suggestions.append("Remove unused variables to improve performance.")
                 if 'W0101' in item or 'unreachable code' in item.lower():
