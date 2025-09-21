@@ -1,17 +1,18 @@
 import json
 from datetime import datetime
 
+
 class FeedbackGeneration:
     """Enhanced feedback generation with comprehensive reporting."""
     
     def __init__(self):
         self.scoring_weights = {
-            'bugs': 15,           # High weight for bugs
+            'bugs': 8,            # Reduced from 15 - still important but not overly harsh
             'security': 20,       # Highest weight for security
-            'standards': 8,       # Medium weight for standards
-            'structure': 10,      # Medium-high for structure
+            'standards': 4,       # Reduced from 8 - standards are important but not critical  
+            'structure': 8,       # Medium for structure
             'complexity': 12,     # High for complexity
-            'performance': 10     # Medium-high for performance
+            'performance': 8      # Medium for performance
         }
     
     def generate_comprehensive_feedback(self, analysis_results, pr_data):
@@ -37,7 +38,7 @@ class FeedbackGeneration:
         
         # Overall scoring and recommendations
         report += self._generate_summary(all_issues, total_issues, risk_score, len(analysis_results))
-        report += self._generate_recommendations(all_issues)
+        report += self._generate_smart_recommendations(all_issues)
         report += self._generate_inline_comments_section(analysis_results)
         
         return report
@@ -95,15 +96,25 @@ class FeedbackGeneration:
         return report, file_issues, risk_score
     
     def _generate_summary(self, all_issues, total_issues, risk_score, file_count):
-        """Generate overall summary and scoring."""
-        # Calculate weighted score
-        weighted_score = 100
+        """Generate overall summary and scoring with improved calculation."""
+        # Improved weighted score calculation
+        base_score = 100
+        total_penalty = 0
+        
         for category, weight in self.scoring_weights.items():
             issue_count = len(all_issues.get(category, []))
-            penalty = min(issue_count * weight, 50)  # Cap penalty at 50 per category
-            weighted_score -= penalty
+            if issue_count > 0:
+                # Progressive penalty - first few issues have less impact
+                if issue_count <= 3:
+                    penalty = issue_count * weight * 0.5  # 50% penalty for first 3
+                elif issue_count <= 7:
+                    penalty = (3 * weight * 0.5) + ((issue_count - 3) * weight * 0.8)  # 80% for next 4
+                else:
+                    penalty = (3 * weight * 0.5) + (4 * weight * 0.8) + ((issue_count - 7) * weight)  # Full penalty for rest
+                
+                total_penalty += min(penalty, 40)  # Cap per category at 40 points
         
-        weighted_score = max(0, weighted_score)
+        weighted_score = max(5, base_score - total_penalty)  # Minimum score of 5
         
         # Overall risk assessment
         avg_risk = risk_score / max(file_count, 1)
@@ -113,7 +124,7 @@ class FeedbackGeneration:
 🎯 OVERALL ASSESSMENT
 {'='*30}
 📊 Total Issues: {total_issues}
-🏆 Quality Score: {weighted_score}/100
+🏆 Quality Score: {int(weighted_score)}/100
 ⚠️  Risk Level: {overall_risk}
 📁 Files Affected: {file_count}
 
@@ -128,8 +139,8 @@ class FeedbackGeneration:
         
         return summary
     
-    def _generate_recommendations(self, all_issues):
-        """Generate AI-powered recommendations."""
+    def _generate_smart_recommendations(self, all_issues):
+        """Generate prioritized, actionable recommendations."""
         recommendations = "\n🚀 SMART RECOMMENDATIONS:\n"
         recommendations += "=" * 30 + "\n"
         
@@ -139,8 +150,34 @@ class FeedbackGeneration:
             recommendations += "✅ No specific recommendations - code looks good!\n"
             return recommendations
         
-        for i, suggestion in enumerate(priority_suggestions, 1):
-            recommendations += f"{i}. 🎯 {suggestion}\n"
+        # Group recommendations by priority
+        high_priority = []
+        medium_priority = []
+        low_priority = []
+        
+        for suggestion in priority_suggestions:
+            if any(word in suggestion.lower() for word in ['security', 'critical', 'error']):
+                high_priority.append(suggestion)
+            elif any(word in suggestion.lower() for word in ['unused', 'unreachable', 'complexity']):
+                medium_priority.append(suggestion)
+            else:
+                low_priority.append(suggestion)
+        
+        # Add recommendations by priority
+        if high_priority:
+            recommendations += "\n🔴 HIGH PRIORITY:\n"
+            for i, suggestion in enumerate(high_priority, 1):
+                recommendations += f"{i}. {suggestion}\n"
+        
+        if medium_priority:
+            recommendations += "\n🟡 MEDIUM PRIORITY:\n"
+            for i, suggestion in enumerate(medium_priority, 1):
+                recommendations += f"{i}. {suggestion}\n"
+        
+        if low_priority:
+            recommendations += "\n🟢 LOW PRIORITY:\n"
+            for i, suggestion in enumerate(low_priority, 1):
+                recommendations += f"{i}. {suggestion}\n"
         
         # Add learning resources
         recommendations += self._get_learning_resources(all_issues)
@@ -148,28 +185,108 @@ class FeedbackGeneration:
         return recommendations
     
     def _generate_inline_comments_section(self, analysis_results):
-        """Generate inline comments section."""
+        """Generate enhanced inline comments section."""
         section = "\n💬 INLINE REVIEW COMMENTS:\n"
         section += "=" * 30 + "\n"
         
         has_comments = False
+        comment_count = 0
+        
         for result in analysis_results:
-            inline_comments = result.get('inline_comments', [])
-            if inline_comments:
+            filename = result['filename']
+            issues = result['issues']
+            
+            # Generate line-specific comments from issues
+            file_comments = []
+            for category, issue_list in issues.items():
+                for issue in issue_list:
+                    comment = self._create_inline_comment(issue, category, filename)
+                    if comment:
+                        file_comments.append(comment)
+            
+            if file_comments:
                 has_comments = True
-                section += f"\n📄 {result['filename']}:\n"
-                for comment in inline_comments[:10]:  # Limit to first 10
-                    line_num = comment.get('line', 'N/A')
-                    code = comment.get('code', '')[:50] + ('...' if len(comment.get('code', '')) > 50 else '')
-                    suggestion = comment.get('suggestion', '')
-                    
-                    section += f"  Line {line_num}: `{code}`\n"
-                    section += f"  💡 {suggestion}\n\n"
+                section += f"\n📄 {filename}:\n"
+                
+                for comment in file_comments[:8]:  # Limit to 8 per file
+                    section += f"  💡 **{comment['category'].upper()}**: {comment['suggestion']}\n"
+                    if comment.get('example'):
+                        section += f"     📝 Example: {comment['example']}\n"
+                    section += "\n"
+                    comment_count += 1
+                
+                if len(file_comments) > 8:
+                    section += f"     ... and {len(file_comments) - 8} more suggestions\n\n"
         
         if not has_comments:
             section += "ℹ️  No line-specific comments generated.\n"
+        else:
+            section += f"📊 Generated {comment_count} actionable suggestions\n"
         
         return section
+    
+    def _create_inline_comment(self, issue, category, filename):
+        """Create actionable inline comment from issue."""
+        comment_templates = {
+            'C0114': {
+                'suggestion': "Add a module docstring at the top of the file to describe its purpose",
+                'example': '"""This module contains utility functions for data processing."""'
+            },
+            'C0116': {
+                'suggestion': "Add docstrings to functions/methods to explain their purpose and parameters", 
+                'example': '"""Calculate the sum of two numbers. Args: a, b (int/float). Returns: sum."""'
+            },
+            'C0115': {
+                'suggestion': "Add a class docstring to describe the class purpose and functionality",
+                'example': '"""A utility class for mathematical calculations."""'
+            },
+            'W0612': {
+                'suggestion': "Remove unused variables or use them in your logic",
+                'example': "Remove 'temp = a + b' since it's not used, or use temp in return statement"
+            },
+            'W0101': {
+                'suggestion': "Remove unreachable code that comes after return statements",
+                'example': "Delete lines that appear after 'return' statements - they will never execute"
+            },
+            'E231': {
+                'suggestion': "Add spaces after commas for better readability (PEP 8)",
+                'example': "Change 'def add(a,b):' to 'def add(a, b):'"
+            },
+            'E261': {
+                'suggestion': "Add at least two spaces before inline comments (PEP 8)",
+                'example': "Change 'x = 1 # comment' to 'x = 1  # comment'"
+            },
+            'E302': {
+                'suggestion': "Add 2 blank lines before function/class definitions (PEP 8)",
+                'example': "Insert 2 empty lines before 'def function_name():' or 'class ClassName:'"
+            },
+            'E731': {
+                'suggestion': "Replace lambda assignments with proper function definitions",
+                'example': "Change 'func = lambda x: x*2' to 'def func(x): return x*2'"
+            },
+            'F841': {
+                'suggestion': "Remove or use local variables that are assigned but never used",
+                'example': "Either delete the variable or use it in your code logic"
+            }
+        }
+        
+        # Extract error code from issue
+        for code, template in comment_templates.items():
+            if code in issue:
+                return {
+                    'category': category,
+                    'code': code,
+                    'suggestion': template['suggestion'],
+                    'example': template.get('example', '')
+                }
+        
+        # Generic comment for unmatched issues
+        return {
+            'category': category,
+            'code': 'GENERIC',
+            'suggestion': f"Review this {category} issue: {issue[:100]}...",
+            'example': ''
+        }
     
     def _calculate_file_risk(self, issues):
         """Calculate risk score for a file."""
@@ -181,11 +298,11 @@ class FeedbackGeneration:
     
     def _get_risk_level(self, score):
         """Get risk level based on score."""
-        if score >= 50:
+        if score >= 80:
             return "🔴 HIGH"
-        elif score >= 25:
+        elif score >= 40:
             return "🟡 MEDIUM"
-        elif score >= 10:
+        elif score >= 15:
             return "🟢 LOW"
         else:
             return "✅ MINIMAL"
@@ -203,81 +320,66 @@ class FeedbackGeneration:
         return icons.get(category, '📝')
     
     def _get_priority_suggestions(self, all_issues):
-        """Get prioritized suggestions based on issues found."""
+        """Get prioritized suggestions based on issues found - FIXED VERSION."""
         suggestions = []
         
-        # Security first
+        # Security first (critical)
         if all_issues.get('security'):
-            suggestions.append("🔒 **SECURITY PRIORITY**: Fix security vulnerabilities immediately")
+            suggestions.append("🔒 **CRITICAL**: Fix security vulnerabilities immediately")
         
         # Critical bugs
         bugs = all_issues.get('bugs', [])
-        critical_bugs = [b for b in bugs if any(x in b.lower() for x in ['error', 'exception', 'undefined'])]
-        if critical_bugs:
-            suggestions.append("🐛 Fix critical bugs that may cause runtime errors")
+        if bugs:
+            # Check for specific types of bugs
+            if any('unreachable' in str(bug).lower() for bug in bugs):
+                suggestions.append("🐛 Remove unreachable code that will never execute")
+            if any('unused' in str(bug).lower() for bug in bugs):
+                suggestions.append("🐛 Clean up unused variables to improve code clarity")
+            if any('constant' in str(bug).lower() for bug in bugs):
+                suggestions.append("🐛 Fix conditional statements with constant values")
         
-        # High complexity
+        # Standards issues
+        standards = all_issues.get('standards', [])
+        if standards:
+            if any('docstring' in str(std).lower() for std in standards):
+                suggestions.append("📏 Add docstrings to improve code documentation")
+            if any('whitespace' in str(std).lower() for std in standards):
+                suggestions.append("📏 Fix spacing and formatting issues (PEP 8)")
+        
+        # Structure issues  
+        if all_issues.get('structure'):
+            suggestions.append("🏗️ Improve code structure and class design")
+        
+        # Complexity
         if all_issues.get('complexity'):
             suggestions.append("🔄 Refactor complex functions to improve maintainability")
         
-        # Structure issues
-        if all_issues.get('structure'):
-            suggestions.append("🏗️ Improve code structure and organization")
-        
-        # Performance
-        if all_issues.get('performance'):
-            suggestions.append("⚡ Optimize performance bottlenecks")
-        
-        # Standards
-        if len(all_issues.get('standards', [])) > 5:
-            suggestions.append("📏 Address coding standard violations for better readability")
-        
-        # Specific suggestions for detected issues
-        for category, items in all_issues.items():
-            for item in items:
-                if 'C0114' in item or 'C0116' in item or 'missing docstring' in item.lower():
-                    suggestions.append("Add docstrings to functions and modules for better readability.")
-                if 'W0612' in item or 'unused variable' in item.lower():
-                    suggestions.append("Remove unused variables to improve performance.")
-                if 'W0101' in item or 'unreachable code' in item.lower():
-                    suggestions.append("Remove unreachable code to improve clarity.")
-                if 'C3001' in item or 'unnecessary-lambda-assignment' in item.lower():
-                    suggestions.append("Replace lambda assignments with proper function definitions.")
-                if 'W0125' in item or 'using a conditional statement with a constant value' in item.lower():
-                    suggestions.append("Avoid using constant values in conditional statements.")
-                if 'C0115' in item or 'missing class docstring' in item.lower():
-                    suggestions.append("Add docstrings to classes for better documentation.")
-                if 'R0903' in item or 'too few public methods' in item.lower():
-                    suggestions.append("Consider adding more public methods to classes for better functionality.")
-                if 'E231' in item or 'missing whitespace' in item.lower():
-                    suggestions.append("Add proper spacing after commas to comply with PEP 8.")
-                if 'E261' in item or 'spaces before inline comment' in item.lower():
-                    suggestions.append("Ensure at least two spaces before inline comments per PEP 8.")
-                if 'F841' in item or 'local variable' in item.lower():
-                    suggestions.append("Remove unused variables to improve performance.")
-                if 'E302' in item or 'expected 2 blank lines' in item.lower():
-                    suggestions.append("Add two blank lines before function or class definitions for better readability.")
-                if 'E305' in item or 'expected 2 blank lines after' in item.lower():
-                    suggestions.append("Add two blank lines after function or class definitions for better readability.")
-                if 'E731' in item or 'do not assign a lambda expression' in item.lower():
-                    suggestions.append("Use 'def' for function definitions instead of lambda assignments.")
-        
-        return list(set(suggestions))  # Remove duplicates
+        return suggestions
     
     def _get_learning_resources(self, all_issues):
         """Provide learning resources based on issues."""
         resources = "\n📚 LEARNING RESOURCES:\n"
         
+        has_resources = False
         if all_issues.get('security'):
-            resources += "• Security: https://owasp.org/www-project-top-ten/\n"
+            resources += "• Security Best Practices: https://owasp.org/www-project-top-ten/\n"
+            has_resources = True
         
         if all_issues.get('standards'):
-            resources += "• Python Style: https://pep8.org/\n"
+            resources += "• Python Style Guide (PEP 8): https://pep8.org/\n"
+            has_resources = True
         
-        if all_issues.get('complexity'):
-            resources += "• Code Complexity: https://refactoring.guru/\n"
+        if all_issues.get('complexity') or all_issues.get('structure'):
+            resources += "• Clean Code Principles: https://refactoring.guru/\n"
+            has_resources = True
         
-        if all_issues.get('structure'):
-            resources += "• Clean Code: https://clean-code-developer.com/\n"
+        # Fixed this line - convert to string first before checking
+        standards_str = str(all_issues.get('standards', []))
+        if 'docstring' in standards_str.lower():
+            resources += "• Python Docstring Guide: https://peps.python.org/pep-0257/\n"
+            has_resources = True
+        
+        if not has_resources:
+            resources += "• General Python Best Practices: https://docs.python-guide.org/\n"
         
         return resources

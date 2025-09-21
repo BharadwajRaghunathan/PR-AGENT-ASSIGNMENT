@@ -1,12 +1,12 @@
 import os
 import tempfile
-import sys
-import ast
-import re
+import subprocess
 from pylint.lint import Run
 from pylint.reporters.text import TextReporter
 from io import StringIO
-import flake8.api.legacy as flake8
+import ast
+import re
+
 
 class CodeAnalysis:
     """Enhanced code analysis with multiple tools and AI insights."""
@@ -78,7 +78,7 @@ class CodeAnalysis:
         return issues
     
     def _run_pylint_analysis(self, temp_path):
-        """Run pylint analysis."""
+        """Run pylint analysis with improved parsing."""
         issues = {'structure': [], 'standards': [], 'bugs': []}
         
         try:
@@ -96,31 +96,38 @@ class CodeAnalysis:
             pylint_output = output.getvalue()
             print(f"📋 Pylint output ({len(pylint_output)} chars):")
             if pylint_output.strip():
-                print(pylint_output[:500] + "..." if len(pylint_output) > 500 else pylint_output)
+                # Show first few lines for debugging
+                lines = pylint_output.split('\n')[:10]
+                for line in lines:
+                    if line.strip():
+                        print(f"  DEBUG: {line}")
             
-            # Parse pylint output
+            # Improved parsing for Windows paths
             lines_processed = 0
             for line in pylint_output.splitlines():
-                if line.strip() and ': ' in line:
+                if line.strip() and any(code in line for code in ['C0', 'R0', 'W0', 'E0', 'F0']):
                     try:
-                        # Format: filename:line:column: CODE: message
-                        parts = line.split(':', 3)
-                        if len(parts) >= 4:
-                            message_part = parts[3].strip()
-                            # Extract code and description
-                            if ' ' in message_part:
-                                code = message_part.split(' ')[0]
-                                desc = ' '.join(message_part.split(' ')[1:]).strip(' ()')
-                                full_message = f"{code}: {desc}"
-                                
-                                if code.startswith('C'):
-                                    issues['standards'].append(full_message)
-                                elif code.startswith('R'):
-                                    issues['structure'].append(full_message)
-                                elif code.startswith(('E', 'W', 'F')):
-                                    issues['bugs'].append(full_message)
-                                
-                                lines_processed += 1
+                        # Use regex to extract code and message
+                        # Pattern: path:line:col: CODE: message
+                        match = re.search(r'([CRWEF]\d{4}):\s*(.+)', line)
+                        if match:
+                            code = match.group(1)
+                            message = match.group(2).strip()
+                            full_message = f"{code}: {message}"
+                            
+                            print(f"  PARSED: {code} -> {message[:50]}...")
+                            
+                            # Categorize by code prefix
+                            if code.startswith('C'):
+                                issues['standards'].append(full_message)
+                            elif code.startswith('R'):
+                                issues['structure'].append(full_message)
+                            elif code.startswith(('E', 'W', 'F')):
+                                issues['bugs'].append(full_message)
+                            
+                            lines_processed += 1
+                        else:
+                            print(f"  UNPARSED: {line[:100]}...")
                     except Exception as e:
                         print(f"⚠️ Error parsing pylint line: {line[:100]}... - {str(e)}")
             
@@ -134,30 +141,81 @@ class CodeAnalysis:
         return issues
     
     def _run_flake8_analysis(self, temp_path):
-        """Run flake8 analysis using direct import."""
+        """Run flake8 analysis with better error handling."""
         issues = {'standards': [], 'bugs': []}
         
         try:
             print("🔍 Running Flake8 analysis...")
-            style_guide = flake8.get_style_guide(max_line_length=120)
-            report = style_guide.check_files([temp_path])
-            stats = report.get_statistics('')
             
-            print(f"📋 Flake8 output ({len(stats)} issues):")
-            if stats:
-                print('\n'.join(stats[:10]) + ("..." if len(stats) > 10 else ""))
-            
-            # Parse flake8 output
-            lines_processed = 0
-            for error in stats:
-                try:
-                    # Format: line:col: CODE message
-                    parts = error.split(':', 2)
-                    if len(parts) >= 3:
-                        error_info = parts[2].strip().split(' ', 1)
-                        if len(error_info) >= 2:
-                            error_code = error_info[0]
-                            error_desc = error_info[1]
+            # Try flake8 subprocess first
+            try:
+                result = subprocess.run(
+                    ['flake8', temp_path, '--max-line-length=120'],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                flake8_output = result.stdout
+                flake8_errors = result.stderr
+                
+                print(f"📋 Flake8 stdout ({len(flake8_output)} chars):")
+                if flake8_output.strip():
+                    for line in flake8_output.split('\n')[:5]:
+                        if line.strip():
+                            print(f"  DEBUG: {line}")
+                
+                if flake8_errors.strip():
+                    print(f"📋 Flake8 stderr: {flake8_errors[:200]}")
+                
+                # Parse flake8 output
+                lines_processed = 0
+                for line in flake8_output.splitlines():
+                    if ':' in line and any(code in line for code in ['E', 'W', 'F']):
+                        try:
+                            # Use regex for better parsing
+                            # Pattern: path:line:col: code message
+                            match = re.search(r'([EWF]\d{3})\s+(.+)', line)
+                            if match:
+                                error_code = match.group(1)
+                                error_desc = match.group(2).strip()
+                                full_message = f"{error_code}: {error_desc}"
+                                
+                                print(f"  PARSED: {error_code} -> {error_desc[:50]}...")
+                                
+                                # Categorize by code prefix
+                                if error_code.startswith(('E', 'F')):
+                                    issues['bugs'].append(full_message)
+                                elif error_code.startswith('W'):
+                                    issues['standards'].append(full_message)
+                                
+                                lines_processed += 1
+                        except Exception as e:
+                            print(f"⚠️ Error parsing flake8 line: {line[:100]}... - {str(e)}")
+                
+                print(f"✅ Flake8 subprocess processed {lines_processed} issue lines")
+                            
+            except (FileNotFoundError, subprocess.SubprocessError):
+                print("⚠️ Flake8 subprocess failed - trying Python module...")
+                
+                # Fallback to Python module
+                result = subprocess.run(
+                    ['python', '-m', 'flake8', temp_path, '--max-line-length=120'],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                flake8_output = result.stdout
+                
+                # Same parsing logic as above
+                lines_processed = 0
+                for line in flake8_output.splitlines():
+                    if ':' in line and any(code in line for code in ['E', 'W', 'F']):
+                        match = re.search(r'([EWF]\d{3})\s+(.+)', line)
+                        if match:
+                            error_code = match.group(1)
+                            error_desc = match.group(2).strip()
                             full_message = f"{error_code}: {error_desc}"
                             
                             if error_code.startswith(('E', 'F')):
@@ -166,19 +224,41 @@ class CodeAnalysis:
                                 issues['standards'].append(full_message)
                             
                             lines_processed += 1
-                except Exception as e:
-                    print(f"⚠️ Error parsing flake8 line: {error[:100]}... - {str(e)}")
-            
-            print(f"✅ Flake8 processed {lines_processed} issue lines")
-            print(f"   Standards: {len(issues['standards'])}, Bugs: {len(issues['bugs'])}")
-                            
-        except ImportError:
-            issues['bugs'].append("Flake8 not available - install with: pip install flake8")
-            print("❌ Flake8 not available")
+                
+                print(f"✅ Flake8 module processed {lines_processed} issue lines")
+                
         except Exception as e:
-            issues['bugs'].append(f"Flake8 error: {str(e)}")
-            print(f"❌ Flake8 error: {str(e)}")
-            
+            print(f"❌ All flake8 methods failed, trying direct import...")
+            # Final fallback to direct import
+            try:
+                import flake8.api.legacy as flake8_api
+                style_guide = flake8_api.get_style_guide(max_line_length=120)
+                report = style_guide.check_files([temp_path])
+                stats = report.get_statistics('')
+                
+                for error in stats:
+                    parts = error.strip().split(' ', 1)
+                    if len(parts) >= 2:
+                        count_and_code = parts[0]
+                        message = parts[1]
+                        # Extract just the code (like "E231")
+                        code_match = re.search(r'([EWF]\d+)', count_and_code)
+                        if code_match:
+                            code = code_match.group(1)
+                            full_message = f"{code}: {message}"
+                            
+                            if code.startswith(('E', 'F')):
+                                issues['bugs'].append(full_message)
+                            elif code.startswith('W'):
+                                issues['standards'].append(full_message)
+                
+                print(f"✅ Flake8 direct import found issues: {len(issues['standards']) + len(issues['bugs'])}")
+                
+            except ImportError:
+                print("❌ Flake8 not available at all - please install with: pip install flake8")
+                issues['bugs'].append("Flake8 not available - install with: pip install flake8")
+        
+        print(f"   Standards: {len(issues['standards'])}, Bugs: {len(issues['bugs'])}")
         return issues
     
     def _run_ast_analysis(self, file_content, filename):

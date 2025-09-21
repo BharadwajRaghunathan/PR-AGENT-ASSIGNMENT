@@ -5,11 +5,12 @@ from feedback_generation import FeedbackGeneration
 from inline_comments import InlineCommentGenerator
 import os
 
+
 def main():
     parser = argparse.ArgumentParser(description="PR Review Agent - Multi-Platform Code Review")
     parser.add_argument('--repo', help="Repository name (e.g., owner/repo)")
     parser.add_argument('--pr', type=int, help="PR number")
-    parser.add_argument('--platform', choices=['github', 'gitlab'], default='github', help="Git platform")
+    parser.add_argument('--platform', choices=['github', 'gitlab', 'bitbucket'], default='github', help="Git platform")
     parser.add_argument('--web', action='store_true', help="Run web interface")
     parser.add_argument('--webhook', action='store_true', help="Run webhook server for CI/CD")
     args = parser.parse_args()
@@ -66,6 +67,7 @@ def main():
         except Exception as e:
             print(f"❌ Error: {str(e)}")
             return
+
 
 if __name__ == "__main__":
     main()
