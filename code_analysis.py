@@ -55,12 +55,14 @@ class CodeAnalysis:
                 print(f"Flake8 raw output:\n{stats if stats else 'Empty'}")
                 for error in stats:
                     # Example: "1:10: E231 missing whitespace after ','"
-                    parts = error.split(' ', 2)
+                    parts = error.split(':', 2)
                     if len(parts) >= 3:
-                        error_code = parts[1]
-                        error_desc = parts[2]
-                        if error_code.startswith('E') or error_code.startswith('F'): issues['bugs'].append(f"{error_code}: {error_desc}")
-                        elif error_code.startswith('W'): issues['standards'].append(f"{error_code}: {error_desc}")
+                        error_info = parts[2].strip().split(' ', 1)
+                        if len(error_info) >= 2:
+                            error_code = error_info[0]
+                            error_desc = error_info[1]
+                            if error_code.startswith('E') or error_code.startswith('F'): issues['bugs'].append(f"{error_code}: {error_desc}")
+                            elif error_code.startswith('W'): issues['standards'].append(f"{error_code}: {error_desc}")
                 print(f"Flake8 found {len(stats)} issues")
             except Exception as e:
                 issues['bugs'].append(f"Flake8 error: {str(e)}")
